@@ -9,16 +9,17 @@ require('dotenv').config();
 const authenticateToken = require('./middleware/auth');
 
 
+// User and Meal models
+const User = require('./models/User'); // Ensure this file exists with the correct schema
+const Meal = require('./models/Meals'); // Create this schema for meals
+
+
 const app = express();
 // Increase payload size limit to handle large image uploads
 app.use(express.json({ limit: '10mb' }));  // Adjust the limit as needed
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors());
 app.use(express.static('public'));
-
-// User and Meal models
-const User = require('./models/User'); // Ensure this file exists with the correct schema
-const Meal = require('./models/Meals'); // Create this schema for meals
 
 
 // เชื่อมต่อ MongoDB
@@ -134,6 +135,46 @@ app.delete('/api/meals/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// **API Route to Get name**
+app.get('/api/username', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];  // ดึง Token จาก Header
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);  // ตรวจสอบ Token
+        const user = await User.findById(decoded.id);  // ค้นหาผู้ใช้ในฐานข้อมูล
+
+        if (user) {
+            res.json({ username: user.username });
+        } else {
+            res.status(404).json({ error: 'User not found' });
+        }
+    } catch (error) {
+        console.error('Error verifying token:', error);
+        res.status(401).json({ error: 'Invalid token' });
+    }
+});
+
+
+function getUserFromToken(req) {
+    const token = req.headers.authorization?.split(' ')[1]; // ดึง token จาก header
+
+    if (!token) {
+        throw new Error('No token provided');
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET); // ตรวจสอบและถอดรหัส token
+        return User.findById(decoded.id); // ค้นหาผู้ใช้จากฐานข้อมูลตาม id ใน token
+    } catch (error) {
+        throw new Error('Invalid token');
+    }
+}
+
+module.exports = getUserFromToken;
+
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000; // กำหนดเวลา 7 วัน (ในหน่วยมิลลิวินาที)
 
 // ฟังก์ชันลบรายการประวัติที่เก่ากว่า 1 นาที
@@ -151,7 +192,7 @@ async function deleteOldHistory() {
     }
 }
 
-// **Add Meal History Entry**
+// *Add Meal History Entry*
 app.post('/api/history', authenticateToken, async (req, res) => {
     try {
         const historyItem = { ...req.body, userId: req.user.id, timestamp: new Date().toISOString() };
@@ -167,7 +208,7 @@ app.post('/api/history', authenticateToken, async (req, res) => {
     }
 });
 
-// **Get Meal History**
+// *Get Meal History*
 app.get('/api/history', authenticateToken, async (req, res) => {
     try {
         await deleteOldHistory(); // ลบรายการที่เก่ากว่า 1 นาที
@@ -185,12 +226,12 @@ app.get('/api/history', authenticateToken, async (req, res) => {
 
 // กำหนด Route สำหรับหน้าเว็บ (กรณีเข้าถึงจาก /)
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/loginResponsive.html');
+    res.sendFile(__dirname + '/public/index.html');
 });
 
 // **Serve other static pages**
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'loginResponsive.html'));
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 
